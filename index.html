@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Object Detection Using YOLO</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(45deg, plum 50%, cornflowerblue);
+            color: #fff;
+        }
+
+        .container {
+            text-align: center;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            background-color: yellow;
+        }
+
+        .page {
+            display: none;
+            padding: 20px;
+            background-color: rgb(16, 14, 14);
+            border-radius: 10px;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        .page-content {
+            background-color: blue;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 0 auto;
+            max-width: 600px;
+        }
+
+        .gradient-title {
+            background: linear-gradient(45deg, #f3ec78, #af4261);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .gradient-text {
+            background: linear-gradient(45deg, #deef7a, #00CED1);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: rgb(164, 231, 231);
+            color: black;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #00CED1;
+        }
+
+        #saveButton {
+            background-color: aqua;
+        }
+
+        #saveButton:hover {
+            background-color: #00CED1;
+        }
+
+        #output img, #output video {
+            max-width: 100%;
+            height: auto;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="page1" class="page active">
+            <div class="page-content">
+                <h1 class="gradient-title">OBJECT DETECTION USING YOLO</h1>
+                <p class="gradient-text">Select an option:</p>
+                <button onclick="selectOption('image')">Upload Image</button>
+                <button onclick="selectOption('video')">Upload Video</button>
+            </div>
+        </div>
+
+        <div id="page2" class="page">
+            <div class="page-content">
+                <h1 class="gradient-title">Upload your <span id="selected-option"></span></h1>
+                <input type="file" id="fileInput" accept="">
+                <button id="uploadButton">Upload</button>
+                <button onclick="goBack(1)">Back</button>
+            </div>
+        </div>
+
+        <div id="page3" class="page">
+            <div class="page-content">
+                <h1 class="gradient-title">After object detection, the output is:</h1>
+                <div id="output"></div>
+                <button id="saveButton" onclick="saveFile()">Save</button>
+                <button onclick="goBack(2)">Back</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function selectOption(option) {
+            document.getElementById('page1').classList.remove('active');
+            document.getElementById('page2').classList.add('active');
+            document.getElementById('selected-option').innerText = option;
+            document.getElementById('fileInput').accept = option === 'image' ? 'image/*' : 'video/*';
+        }
+
+        function goBack(pageNumber) {
+            document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+            document.getElementById(`page${pageNumber}`).classList.add('active');
+        }
+
+        document.getElementById('uploadButton').addEventListener('click', function() {
+            const fileInput = document.getElementById('fileInput');
+            if (fileInput.files.length === 0) {
+                alert('Please select a file to upload.');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append(file.type.startsWith('image/') ? 'image' : 'video', file);
+
+            const outputDiv = document.getElementById('output');
+            const url = file.type.startsWith('image/') ? '/upload_image' : '/upload_video';
+
+            console.log('Uploading file:', file);
+            console.log('Using URL:', url);
+
+            fetch(url, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok ' + response.statusText);
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                const resultURL = URL.createObjectURL(blob);
+                if (file.type.startsWith('image/')) {
+                    const img = document.createElement('img');
+                    img.src = resultURL;
+                    img.onload = function() {
+                        URL.revokeObjectURL(this.src); // Clean up the object URL
+                    };
+                    outputDiv.innerHTML = '';
+                    outputDiv.appendChild(img);
+                } else {
+                    const video = document.createElement('video');
+                    video.controls = true;
+                    video.src = resultURL;
+                    video.onload = function() {
+                        URL.revokeObjectURL(this.src); // Clean up the object URL
+                    };
+                    outputDiv.innerHTML = '';
+                    outputDiv.appendChild(video);
+                }
+
+                document.getElementById('page2').classList.remove('active');
+                document.getElementById('page3').classList.add('active');
+            })
+            .catch(error => {
+                console.error('Error during file upload:', error);
+                alert('An error occurred while uploading the file. Please try again.');
+            });
+        });
+
+        function saveFile() {
+            const outputDiv = document.getElementById('output');
+            const outputElement = outputDiv.children[0];
+
+            if (!outputElement) {
+                alert('No output to save.');
+                return;
+            }
+
+            const link = document.createElement('a');
+            if (outputElement.tagName === 'IMG') {
+                link.href = outputElement.src;
+                link.download = 'output.png';
+            } else if (outputElement.tagName === 'VIDEO') {
+                link.href = outputElement.src;
+                link.download = 'output.mp4';
+            }
+
+            link.click();
+        }
+    </script>
+</body>
+</html>
